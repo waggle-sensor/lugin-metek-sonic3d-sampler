@@ -102,7 +102,9 @@ def read_and_parse_data(serial_connection, data_names):
     :return: A dictionary of parsed data.
     """
     try:
-        line = serial_connection.read_until(b"\r").decode("utf-8").rstrip().split()
+        #line = serial_connection.read_until(b"\r\n").decode("utf-8").rstrip().split()
+        line = serial_connection.readline().decode("utf8").rstrip().split()[1:5]
+        logging.info(line)
         keys = data_names.keys()
         values = [float(value) for value in line]
         data_dict = dict(zip(keys, values))
