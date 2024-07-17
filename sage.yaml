@@ -1,0 +1,15 @@
+name: "sonic3d-rmyong"
+description: "Captures & uploads 3D winds and sonic temperature data from R.M. Young Model 81000 Ultrasonic Anemometer data stream."
+version: "0.24.1.25"
+authors: "Bhupendra Raut <braut@anl.gov>"
+collaborators: "Sujan Pal (spal@anl.gov) and Joe O'Brien (obrienj@anl.gov)"
+funding: "Community Research on Climate and Urban Science (CROCUS)"
+license: "Gnu GPL v2 license"
+keywords: "Fluxes, Eddy covariance"
+homepage: "https://github.com/waggle-sensor/plugin-sonic3d-rmyong"
+source:
+  architectures:
+    - "linux/amd64"
+    - "linux/arm64"
+  url: "https://github.com/waggle-sensor/plugin-sonic3d-rmyong"
+  branch: "main"
