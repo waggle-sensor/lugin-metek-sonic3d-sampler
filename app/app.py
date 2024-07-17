@@ -104,7 +104,6 @@ def read_and_parse_data(serial_connection, data_names):
     try:
         #line = serial_connection.read_until(b"\r\n").decode("utf-8").rstrip().split()
         line = serial_connection.readline().decode("utf8").rstrip().split(';')[1:5]
-        logging.info(line)
         keys = data_names.keys()
         values = [float(value) for value in line]
         data_dict = dict(zip(keys, values))
@@ -138,7 +137,7 @@ if __name__ == "__main__":
         ]
     )
     sonic_meta = {
-        "sensor": "RMYong-sonic3D",
+        "sensor": "METEK-sonic3D",
         "units": {
             "sonic3d.uwind": "m/s",
             "sonic3d.vwind": "m/s",
