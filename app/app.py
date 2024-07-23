@@ -40,8 +40,9 @@ def connect_to_device(device, baud_rate):
             )
             return serial_connection
         except serial.SerialException as e:
-            logging.error(f"Error connecting to device: {e}. Retrying in 5 seconds.")
-            time.sleep(5)
+            logging.error(f"Error connecting to device: {e}. Retrying in a minute.")
+            time.sleep(60)
+            # I think 5 minute is good for most applications
 
 
 
@@ -84,29 +85,34 @@ def run_device_interface(device, baud_rate, data_names, meta, debug=False):
     """
 
     with Plugin() as plugin:
-        serial_connection = connect_to_device(device, baud_rate)
-        time.sleep(2)
-
         while True:
-            try:
-                data = read_and_parse_data(serial_connection, data_names)
-                if debug:
-                    print(data)
-                publish_data(plugin, data, data_names, meta)
-            except serial.SerialException as e:
-                    logging.error(f"Serial error: {e} while reading data.")
-                    # here you need to disconnect and get call the  `connect_to_device`
-            except ValueError as e:
-                    logging.error(f"Value error: {e}")
-            except KeyboardInterrupt:
-                    logging.info("Key Interrupt received, shutting down.")
-                    break
-            except Exception as e:
-                    logging.error(f"Unexpected error: {e}")
-                    break
+            serial_connection = connect_to_device(device, baud_rate)
+            time.sleep(2)
 
-        if serial_connection and not serial_connection.closed:
-            serial_connection.close()
+            while True:
+                try:
+                    data = read_and_parse_data(serial_connection, data_names)
+                    if debug:
+                        print(data)
+                    publish_data(plugin, data, data_names, meta)
+                except serial.SerialException as e:
+                        logging.error(f"Serial error: {e} while reading data.")
+                        break
+                except ValueError as e:
+                        logging.error(f"Value error: {e}")
+                        break
+                except KeyboardInterrupt:
+                        logging.info("Key Interrupt received, shutting down.")
+                        break
+                except Exception as e:
+                        logging.error(f"Unexpected error: {e}")
+                        break
+
+            if serial_connection and not serial_connection.closed:
+                serial_connection.close()
+
+            logging.info("Attempting to reconnect in 30 seconds...")
+            time.sleep(30)
 
 
 def read_and_parse_data(serial_connection, data_names):
