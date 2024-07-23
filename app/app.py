@@ -1,22 +1,16 @@
-"""
-ToDo:
-1. Timeout but  do not exit.
-2. If error report the status every 5 min.
-3. Make sure it keep working even after the error.
-4. Use node timestamp
-"""
-
 import serial
 from argparse import ArgumentParser
 import logging
 from collections import OrderedDict
 import sys
 import time
-from waggle.plugin import Plugin  , get_timestamp
+from waggle.plugin import Plugin, get_timestamp
 
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 # use timeout decorator for this function
@@ -45,7 +39,6 @@ def connect_to_device(device, baud_rate):
             # I think 5 minute is good for most applications
 
 
-
 def publish_data(plugin, data, data_names, meta, additional_meta=None):
     """
     Publishes data to the plugin.
@@ -68,9 +61,11 @@ def publish_data(plugin, data, data_names, meta, additional_meta=None):
                 }
                 if additional_meta:
                     meta_data.update(additional_meta)
-                
+
                 timestamp = get_timestamp()
-                plugin.publish(data_names[key], value, meta=meta_data, timestamp=timestamp)
+                plugin.publish(
+                    data_names[key], value, meta=meta_data, timestamp=timestamp
+                )
             except KeyError as e:
                 print(f"Error: Missing key in meta data - {e}")
 
@@ -98,17 +93,17 @@ def run_device_interface(device, baud_rate, data_names, meta, debug=False):
                         print(data)
                     publish_data(plugin, data, data_names, meta)
                 except serial.SerialException as e:
-                        logging.error(f"Serial error: {e} while reading data.")
-                        break
+                    logging.error(f"Serial error: {e} while reading data.")
+                    break
                 except ValueError as e:
-                        logging.error(f"Value error: {e}")
-                        break
+                    logging.error(f"Value error: {e}")
+                    break
                 except KeyboardInterrupt:
-                        logging.info("Key Interrupt received, shutting down.")
-                        break
+                    logging.info("Key Interrupt received, shutting down.")
+                    break
                 except Exception as e:
-                        logging.error(f"Unexpected error: {e}")
-                        break
+                    logging.error(f"Unexpected error: {e}")
+                    break
 
             if serial_connection and not serial_connection.closed:
                 serial_connection.close()
@@ -125,8 +120,8 @@ def read_and_parse_data(serial_connection, data_names):
     :return: A dictionary of parsed data.
     """
     try:
-        #line = serial_connection.read_until(b"\r\n").decode("utf-8").rstrip().split()
-        line = serial_connection.readline().decode("utf8").rstrip().split(';')[1:5]
+        # line = serial_connection.read_until(b"\r\n").decode("utf-8").rstrip().split()
+        line = serial_connection.readline().decode("utf8").rstrip().split(";")[1:5]
         keys = data_names.keys()
         values = [float(value) for value in line]
         data_dict = dict(zip(keys, values))
