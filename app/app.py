@@ -1,14 +1,26 @@
+"""
+ToDo:
+1. Timeout but  do not exit.
+2. If error report the status every 5 min.
+3. Make sure it keep working even after the error.
+4. Use node timestamp
+"""
+
 import serial
 from argparse import ArgumentParser
 import logging
 from collections import OrderedDict
 import sys
 import time
-from waggle.plugin import Plugin  # , get_timestamp
+from waggle.plugin import Plugin  , get_timestamp
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
+# use timeout decorator for this function
+# make sure timeout will not exit the app, but try again till infinity.
 def connect_to_device(device, baud_rate):
     """
     Establishes a serial connection to a device.
@@ -81,6 +93,7 @@ def run_device_interface(device, baud_rate, data_names, meta, debug=False):
                 publish_data(plugin, data, data_names, meta)
             except serial.SerialException as e:
                     logging.error(f"Serial error: {e} while reading data.")
+                    # here you need to disconnect and get call the  `connect_to_device`
             except ValueError as e:
                     logging.error(f"Value error: {e}")
             except KeyboardInterrupt:
