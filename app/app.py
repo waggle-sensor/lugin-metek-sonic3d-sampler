@@ -68,7 +68,9 @@ def publish_data(plugin, data, data_names, meta, additional_meta=None):
                 }
                 if additional_meta:
                     meta_data.update(additional_meta)
-                plugin.publish(data_names[key], value, meta=meta_data)
+                
+                timestamp = get_timestamp()
+                plugin.publish(data_names[key], value, meta=meta_data, timestamp=timestamp)
             except KeyError as e:
                 print(f"Error: Missing key in meta data - {e}")
 
