@@ -23,20 +23,23 @@ def connect_to_device(device, baud_rate):
     :param baud_rate: The baud rate for the serial connection.
     :return: A serial connection object.
     """
-    while True:
-        try:
-            serial_connection = serial.Serial(
-                device,
-                baudrate=baud_rate,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-            )
-            return serial_connection
-        except serial.SerialException as e:
-            logging.error(f"Error connecting to device: {e}. Retrying in a minute.")
-            time.sleep(60)
-            # I think 5 minute is good for most applications
+    with Plugin() as plugin:
+        while True:
+            try:
+                serial_connection = serial.Serial(
+                    device,
+                    baudrate=baud_rate,
+                    bytesize=serial.EIGHTBITS,
+                    parity=serial.PARITY_NONE,
+                    stopbits=serial.STOPBITS_ONE,
+                )
+                plugin.publish('status', 'connected')
+                return serial_connection
+            except serial.SerialException as e:
+                logging.error(f"Error connecting to device: {e}. Retrying in a minute.")
+                plugin.publish('status', f'{e}')
+                time.sleep(60)
+                # I think 5 minute is good for most applications
 
 
 def publish_data(plugin, data, data_names, meta, additional_meta=None):
@@ -49,9 +52,10 @@ def publish_data(plugin, data, data_names, meta, additional_meta=None):
     :param meta: Metadata associated with the data.
     :param additional_meta: Additional metadata to be included.
     """
+
     if not data:
         logging.warning("No data to publish.")
-        plugin.publish("connection.status", "Empty data received", meta={"timestamp": get_timestamp()})
+        plugin.publish("status", "NoData", meta={"timestamp": get_timestamp()})
         return
 
     for key, value in data.items():
@@ -72,6 +76,7 @@ def publish_data(plugin, data, data_names, meta, additional_meta=None):
                     data_names[key], value, meta=meta_data, timestamp=timestamp
                 )
             except KeyError as e:
+                plugin.publish('status', f'{e}')
                 print(f"Error: Missing key in meta data - {e}")
 
 
@@ -99,16 +104,20 @@ def run_device_interface(device, baud_rate, data_names, meta, debug=False):
                     publish_data(plugin, data, data_names, meta)
                 except serial.SerialException as e:
                     logging.error(f"Serial error: {e} while reading data.")
-                    break
+                    plugin.publish('status', f'{e}')
+                    continue
                 except ValueError as e:
                     logging.error(f"Value error: {e}")
-                    break
+                    plugin.publish('status', f'{e}')
+                    continue
                 except KeyboardInterrupt:
                     logging.info("Key Interrupt received, shutting down.")
-                    break
+                    plugin.publish('status', f'{e}')
+                    continue
                 except Exception as e:
                     logging.error(f"Unexpected error: {e}")
-                    break
+                    plugin.publish('status', f'{e}')
+                    continue
 
             if serial_connection and not serial_connection.closed:
                 serial_connection.close()
