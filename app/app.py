@@ -49,6 +49,11 @@ def publish_data(plugin, data, data_names, meta, additional_meta=None):
     :param meta: Metadata associated with the data.
     :param additional_meta: Additional metadata to be included.
     """
+    if not data:
+        logging.warning("No data to publish.")
+        plugin.publish("connection.status", "Empty data received", meta={"timestamp": get_timestamp()})
+        return
+
     for key, value in data.items():
         if key in data_names:
             try:
@@ -122,6 +127,11 @@ def read_and_parse_data(serial_connection, data_names):
     try:
         # line = serial_connection.read_until(b"\r\n").decode("utf-8").rstrip().split()
         line = serial_connection.readline().decode("utf8").rstrip().split(";")[1:5]
+
+        if not line or len(line) < len(data_names):
+            logging.warning("Empty or incomplete data line received.")
+            raise ValueError("Empty or incomplete data line.")
+
         keys = data_names.keys()
         values = [float(value) for value in line]
         data_dict = dict(zip(keys, values))
