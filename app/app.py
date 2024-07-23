@@ -29,18 +29,20 @@ def connect_to_device(device, baud_rate):
     :param baud_rate: The baud rate for the serial connection.
     :return: A serial connection object.
     """
-    try:
-        serial_connection = serial.Serial(
-            device,
-            baudrate=baud_rate,
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-        )
-    except serial.SerialException as e:
-        logging.error(f"Error connecting to device: {e}")
-        raise
-    return serial_connection
+    while True:
+        try:
+            serial_connection = serial.Serial(
+                device,
+                baudrate=baud_rate,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+            )
+            return serial_connection
+        except serial.SerialException as e:
+            logging.error(f"Error connecting to device: {e}. Retrying in 5 seconds.")
+            time.sleep(5)
+
 
 
 def publish_data(plugin, data, data_names, meta, additional_meta=None):
