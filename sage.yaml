@@ -1,4 +1,4 @@
-name: "sonic3d-METEK"
+name: "sonic3d-metek"
 description: "Captures & uploads 3D winds and sonic temperature data from  Ultrasonic Anemometer uSonic-3 data stream."
 version: "0.24.1.25"
 authors: "Bhupendra Raut <braut@anl.gov>"
