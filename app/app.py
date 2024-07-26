@@ -1,58 +1,78 @@
 import serial
+import socket
 from argparse import ArgumentParser
 import logging
 from collections import OrderedDict
 import sys
 import time
 from waggle.plugin import Plugin, get_timestamp
-
+import timeout_decorator
+import os
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+TIMEOUT_SECONDS = 300
 
-# use timeout decorator for this function
-# make sure timeout will not exit the app, but try again till infinity.
-def connect_to_device(device, baud_rate):
-    """
-    Establishes a serial connection to a device.
-
-    :param device: The device path (e.g., '/dev/ttyUSB0').
-    :param baud_rate: The baud rate for the serial connection.
-    :return: A serial connection object.
-    """
-    with Plugin() as plugin:
-        while True:
-            try:
-                serial_connection = serial.Serial(
-                    device,
-                    baudrate=baud_rate,
-                    bytesize=serial.EIGHTBITS,
-                    parity=serial.PARITY_NONE,
-                    stopbits=serial.STOPBITS_ONE,
-                )
-                plugin.publish('status', 'connected')
-                return serial_connection
-            except serial.SerialException as e:
-                logging.error(f"Error connecting to device: {e}. Retrying in a minute.")
-                plugin.publish('status', f'{e}')
-                time.sleep(60)
-                # I think 5 minute is good for most applications
-
+class DeviceConnection:
+    def __init__(self, args):
+        self.connection_type = args.connection_type
+        self.buffer = b""
+        
+        if self.connection_type == "usb":
+            self.connection = serial.Serial(
+                args.device,
+                baudrate=args.baud_rate,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+            )
+            logging.info("Connected to USB-Serial device.")
+        elif self.connection_type == "tcp":
+            self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.connection.connect((args.ip, args.port))
+            
+            response = self.connection.recv(4096).decode("utf-8")
+            self.connection.sendall(f"{args.username}\r\n".encode())
+            response = self.connection.recv(4096).decode("utf-8")
+            self.connection.sendall(f"{args.password}\r\n".encode())
+            
+            response = self.connection.recv(4096).decode("utf-8")
+            if "authentication successful" not in response.lower():
+                raise Exception("Authentication failed.")
+                
+            logging.info("Connected to TCP device.")
+        else:
+            raise ValueError("Unsupported connection type.")
+    
+    @timeout_decorator.timeout(TIMEOUT_SECONDS, use_signals=True)
+    def read_and_parse_data(self, data_names):
+        try:
+            if self.connection_type == "usb":
+                line = self.connection.readline().decode("utf8").rstrip().split(";")[1:5]
+            elif self.connection_type == "tcp":
+                while b"\r\n" not in self.buffer:
+                    self.buffer += self.connection.recv(4096)
+                line, self.buffer = self.buffer.split(b"\r\n", 1)
+                line = line.decode("utf-8").rstrip().split(";")[1:5]
+            else:
+                raise ValueError("Unsupported connection type.")
+            
+            if not line or len(line) < len(data_names):
+                logging.warning("Empty or incomplete data line received.")
+                raise ValueError("Empty or incomplete data line.")
+            
+            keys = data_names.keys()
+            values = [float(value) for value in line]
+            data_dict = dict(zip(keys, values))
+            return data_dict
+        except Exception as e:
+            logging.error(f"Error reading data: {e}")
+            raise
 
 def publish_data(plugin, data, data_names, meta, additional_meta=None):
-    """
-    Publishes data to the plugin.
-
-    :param plugin: Plugin object for publishing data.
-    :param data: Dictionary of data to be published.
-    :param data_names: Mapping of data keys to their publishing names.
-    :param meta: Metadata associated with the data.
-    :param additional_meta: Additional metadata to be included.
-    """
-
     if not data:
         logging.warning("No data to publish.")
         plugin.publish("status", "NoData", meta={"timestamp": get_timestamp()})
@@ -79,92 +99,38 @@ def publish_data(plugin, data, data_names, meta, additional_meta=None):
                 plugin.publish('status', f'{e}')
                 print(f"Error: Missing key in meta data - {e}")
 
-
-def run_device_interface(device, baud_rate, data_names, meta, debug=False):
-    """
-    Runs the device interface for reading and publishing data.
-
-    :param device: The device path (e.g., '/dev/ttyUSB0').
-    :param baud_rate: The baud rate for the serial connection.
-    :param data_names: Mapping of data keys to their publishing names.
-    :param meta: Metadata associated with the data.
-    :param debug: Boolean flag to enable debug mode.
-    """
-
+def run_device_interface(args, data_names, meta):
     with Plugin() as plugin:
+        device_connection = DeviceConnection(args)
         while True:
-            serial_connection = connect_to_device(device, baud_rate)
             time.sleep(2)
-
             while True:
                 try:
-                    data = read_and_parse_data(serial_connection, data_names)
-                    if debug:
+                    data = device_connection.read_and_parse_data(data_names)
+                    if args.debug:
                         print(data)
                     publish_data(plugin, data, data_names, meta)
-                except serial.SerialException as e:
-                    logging.error(f"Serial error: {e} while reading data.")
-                    plugin.publish('status', f'{e}')
-                    continue
-                except ValueError as e:
-                    logging.error(f"Value error: {e}")
-                    plugin.publish('status', f'{e}')
-                    continue
-                except KeyboardInterrupt:
-                    logging.info("Key Interrupt received, shutting down.")
-                    plugin.publish('status', f'{e}')
-                    continue
                 except Exception as e:
-                    logging.error(f"Unexpected error: {e}")
+                    logging.error(f"Error: {e} while reading data.")
                     plugin.publish('status', f'{e}')
                     continue
-
-            if serial_connection and not serial_connection.closed:
-                serial_connection.close()
-
+            if device_connection.connection and not device_connection.connection.closed:
+                device_connection.connection.close()
             logging.info("Attempting to reconnect in 30 seconds...")
             time.sleep(30)
 
-
-def read_and_parse_data(serial_connection, data_names):
-    """
-    Reads and parses data from the serial connection. Assumes "\r" linebreak.
-
-    :param serial_connection: The serial connection object.
-    :return: A dictionary of parsed data.
-    """
-    try:
-        # line = serial_connection.read_until(b"\r\n").decode("utf-8").rstrip().split()
-        line = serial_connection.readline().decode("utf8").rstrip().split(";")[1:5]
-
-        if not line or len(line) < len(data_names):
-            logging.warning("Empty or incomplete data line received.")
-            raise ValueError("Empty or incomplete data line.")
-
-        keys = data_names.keys()
-        values = [float(value) for value in line]
-        data_dict = dict(zip(keys, values))
-        return data_dict
-    except serial.SerialException as e:
-        logging.error(f"Serial error: {e}")
-        raise
-    except ValueError as e:
-        logging.error(f"Value error: {e}")
-        raise
-
-
 if __name__ == "__main__":
-    arg_parser = ArgumentParser(description="Universal Serial Device Interface")
-    arg_parser.add_argument("--device", type=str, help="Device to read", required=True)
-    arg_parser.add_argument(
-        "--baud_rate", type=int, help="Baud rate for the device", required=True
-    )
-    arg_parser.add_argument(
-        "--debug", action="store_true", help="Run script in debug mode"
-    )
+    arg_parser = ArgumentParser(description="Universal Device Interface")
+    arg_parser.add_argument("--connection_type", type=str, choices=["usb", "tcp"], required=True, help="Type of connection (usb-serial or tcp)")
+    arg_parser.add_argument("--device", type=str, default='NA', help="Device to read for USB-Serial")
+    arg_parser.add_argument("--baud_rate", type=int, default=-999, help="Baud rate for the USB-Serial device")
+    arg_parser.add_argument('--ip', type=str, default='10.31.81.9999', help='Device IP address for TCP')
+    arg_parser.add_argument('--port', type=int, default=5001, help='TCP connection port (default: 5001)')
+    arg_parser.add_argument('--username', type=str, default="data", help='Username for TCP connection')
+    arg_parser.add_argument('--password', type=str, default="METEKGMBH", help='Password for TCP connection')
+    arg_parser.add_argument('--debug', action="store_true", help="Run script in debug mode")
     args = arg_parser.parse_args()
 
-    # The `key` order should be same as the order of variables in the data stream.
     sonic_data_names = OrderedDict(
         [
             ("U", "sonic3d.uwind"),
@@ -190,8 +156,6 @@ if __name__ == "__main__":
     }
 
     try:
-        run_device_interface(
-            args.device, args.baud_rate, sonic_data_names, sonic_meta, debug=args.debug
-        )
+        run_device_interface(args, sonic_data_names, sonic_meta)
     except Exception as e:
         logging.error(f"Error running device interface: {e}")
