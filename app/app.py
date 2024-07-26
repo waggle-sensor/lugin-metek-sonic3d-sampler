@@ -113,10 +113,10 @@ def run_device_interface(args, data_names, meta):
                     logging.error(f"Error: {e} while reading data.")
                     plugin.publish('status', f'{e}')
                     continue
-            if device_connection.connection and not device_connection.connection.closed:
-                device_connection.connection.close()
-            logging.info("Attempting to reconnect in 30 seconds...")
-            time.sleep(30)
+            #if device_connection.connection and not device_connection.connection.closed:
+            #    device_connection.connection.close()
+            #logging.info("Attempting to reconnect in 30 seconds...")
+            #time.sleep(30)
 
 if __name__ == "__main__":
     arg_parser = ArgumentParser(description="Universal Device Interface")
