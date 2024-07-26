@@ -139,8 +139,8 @@ if __name__ == "__main__":
         ]
     )
     sonic_meta = {
+        "connection": args.connection_type,
         "sensor": "METEK-sonic3D",
-        "on": args.connection_type,
         "units": {
             "sonic3d.uwind": "m/s",
             "sonic3d.vwind": "m/s",
