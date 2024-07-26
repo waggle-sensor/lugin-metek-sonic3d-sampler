@@ -6,7 +6,6 @@ from collections import OrderedDict
 import sys
 import time
 from waggle.plugin import Plugin, get_timestamp
-import timeout_decorator
 import os
 
 # Configure logging
@@ -47,7 +46,7 @@ class DeviceConnection:
         else:
             raise ValueError("Unsupported connection type.")
     
-    @timeout_decorator.timeout(TIMEOUT_SECONDS, use_signals=True)
+
     def read_and_parse_data(self, data_names):
         try:
             if self.connection_type == "usb":
