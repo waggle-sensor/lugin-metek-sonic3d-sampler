@@ -18,8 +18,8 @@ TIMEOUT_SECONDS = 300
 class DeviceConnection:
     def __init__(self, args):
         self.connection_type = args.connection_type
-        self.buffer = b""
-        
+        self.buffer = b"" # buffer for byte string
+
         if self.connection_type == "usb":
             self.connection = serial.Serial(
                 args.device,
@@ -52,8 +52,10 @@ class DeviceConnection:
             if self.connection_type == "usb":
                 line = self.connection.readline().decode("utf8").rstrip().split(";")[1:5]
             elif self.connection_type == "tcp":
+                # when buffer is enmpty
                 while b"\r\n" not in self.buffer:
                     self.buffer += self.connection.recv(4096)
+                # get the first line
                 line, self.buffer = self.buffer.split(b"\r\n", 1)
                 line = line.decode("utf-8").rstrip().split(";")[1:5]
             else:
