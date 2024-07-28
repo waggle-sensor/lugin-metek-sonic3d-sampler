@@ -8,19 +8,22 @@ import time
 from waggle.plugin import Plugin, get_timestamp
 import os
 
-# Configure logging
+# Configure logging for the script
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+# Timeout duration in seconds
 TIMEOUT_SECONDS = 300
 
 class DeviceConnection:
     def __init__(self, args):
         self.connection_type = args.connection_type
-        self.buffer = b"" # buffer for byte string
+        self.buffer = b""  # Initialize buffer for storing received byte strings
 
+        # Establish connection based on the type specified
         if self.connection_type == "usb":
+            # Set up USB-Serial connection
             self.connection = serial.Serial(
                 args.device,
                 baudrate=args.baud_rate,
@@ -30,9 +33,11 @@ class DeviceConnection:
             )
             logging.info("Connected to USB-Serial device.")
         elif self.connection_type == "tcp":
+            # Set up TCP connection
             self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.connection.connect((args.ip, args.port))
             
+            # Authenticate with the TCP device
             response = self.connection.recv(4096).decode("utf-8")
             self.connection.sendall(f"{args.username}\r\n".encode())
             response = self.connection.recv(4096).decode("utf-8")
@@ -46,25 +51,28 @@ class DeviceConnection:
         else:
             raise ValueError("Unsupported connection type.")
     
-
     def read_and_parse_data(self, data_names):
         try:
+            # Read data based on connection type
             if self.connection_type == "usb":
+                # Read and parse line from USB-Serial connection
                 line = self.connection.readline().decode("utf8").rstrip().split(";")[1:5]
             elif self.connection_type == "tcp":
-                # when buffer is enmpty
+                # Ensure the buffer has a complete line
                 while b"\r\n" not in self.buffer:
                     self.buffer += self.connection.recv(4096)
-                # get the first line
+                # Extract the first complete line from the buffer
                 line, self.buffer = self.buffer.split(b"\r\n", 1)
                 line = line.decode("utf-8").rstrip().split(";")[1:5]
             else:
                 raise ValueError("Unsupported connection type.")
             
+            # Check for valid data line
             if not line or len(line) < len(data_names):
                 logging.warning("Empty or incomplete data line received.")
                 raise ValueError("Empty or incomplete data line.")
             
+            # Map the parsed values to their respective keys
             keys = data_names.keys()
             values = [float(value) for value in line]
             data_dict = dict(zip(keys, values))
@@ -79,9 +87,11 @@ def publish_data(plugin, data, data_names, meta, additional_meta=None):
         plugin.publish("status", "NoData", meta={"timestamp": get_timestamp()})
         return
 
+    # Publish each data item with its metadata
     for key, value in data.items():
         if key in data_names:
             try:
+                # Prepare metadata for publishing
                 meta_data = {
                     "missing": "-9999.0",
                     "units": meta["units"][data_names[key]],
@@ -104,9 +114,10 @@ def run_device_interface(args, data_names, meta):
     with Plugin() as plugin:
         device_connection = DeviceConnection(args)
         while True:
-            time.sleep(2)
+            time.sleep(2)  # Introduce delay between data readings
             while True:
                 try:
+                    # Read and publish data continuously
                     data = device_connection.read_and_parse_data(data_names)
                     if args.debug:
                         print(data)
@@ -115,12 +126,9 @@ def run_device_interface(args, data_names, meta):
                     logging.error(f"Error: {e} while reading data.")
                     plugin.publish('status', f'{e}')
                     continue
-            #if device_connection.connection and not device_connection.connection.closed:
-            #    device_connection.connection.close()
-            #logging.info("Attempting to reconnect in 30 seconds...")
-            #time.sleep(30)
 
 if __name__ == "__main__":
+    # Set up argument parser for command line arguments
     arg_parser = ArgumentParser(description="Universal Device Interface")
     arg_parser.add_argument("--connection_type", type=str, choices=["usb", "tcp"], required=True, help="Type of connection (usb-serial or tcp)")
     arg_parser.add_argument("--device", type=str, default='NA', help="Device to read for USB-Serial")
@@ -132,6 +140,7 @@ if __name__ == "__main__":
     arg_parser.add_argument('--debug', action="store_true", help="Run script in debug mode")
     args = arg_parser.parse_args()
 
+    # Define data names and metadata for the sonic sensor
     sonic_data_names = OrderedDict(
         [
             ("U", "sonic3d.uwind"),
