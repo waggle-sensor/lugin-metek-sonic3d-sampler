@@ -1,3 +1,2 @@
 pywaggle
 pyserial
-pytest
