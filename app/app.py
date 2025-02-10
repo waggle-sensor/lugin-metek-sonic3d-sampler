@@ -82,9 +82,11 @@ class DeviceConnection:
             raise
 
 def publish_data(plugin, data, data_names, meta, additional_meta=None):
+    timestamp = get_timestamp()
+
     if not data:
         logging.warning("No data to publish.")
-        plugin.publish("status", "NoData", meta={"timestamp": get_timestamp()})
+        plugin.publish("status", "NoData", meta={"timestamp": timestamp})
         return
 
     # Publish each data item with its metadata
@@ -102,7 +104,6 @@ def publish_data(plugin, data, data_names, meta, additional_meta=None):
                 if additional_meta:
                     meta_data.update(additional_meta)
 
-                timestamp = get_timestamp()
                 plugin.publish(
                     data_names[key], value, meta=meta_data, timestamp=timestamp
                 )
